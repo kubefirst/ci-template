@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket  = "<TF_STATE_BUCKET>"
+    bucket  = var.bucket_ci
     key     = "terraform/base/tfstate.tf"
     region  = "<AWS_DEFAULT_REGION>"
     encrypt = true
