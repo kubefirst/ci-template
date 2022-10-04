@@ -17,7 +17,10 @@ spec:
         arguments:
           parameters:
           - name: command
-            value: "./kubefirst action aws-whoami && ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> --s3-suffix <CI_S3_SUFFIX> --admin-email $EMAIL --hosted-zone-name $HOSTED_ZONE_NAME --gitops-branch $GITOPS_BRANCH --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --silent || cat logs/*"
+            value: "./kubefirst action aws-whoami && \
+            ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
+            --s3-suffix <CI_S3_SUFFIX> --admin-email $EMAIL --hosted-zone-name $HOSTED_ZONE_NAME --gitops-branch $GITOPS_BRANCH \
+            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --silent || cat logs/*"
           artifacts:
             - name: source
               from: "{{steps.kubefirst-build.outputs.artifacts.source}}"
@@ -50,7 +53,18 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
           parameters:
           - name: command
-            value: "echo 'nameserver 208.67.222.222' >> /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && echo 'nameserver 1.0.0.1' >> /etc/resolv.conf && echo 'nameserver 8.8.8.8' >> /etc/resolv.conf && curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && mkdir -p $HOME/bin && cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && export PATH=$PATH:$HOME/bin && echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && chmod +x /root/bin/aws-iam-authenticator && rm logs/log* && ./kubefirst cluster create --silent || cat logs/log*"
+            value: "echo 'nameserver 208.67.222.222' >> /etc/resolv.conf && \
+            echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && \
+            echo 'nameserver 1.0.0.1' >> /etc/resolv.conf && \
+            echo 'nameserver 8.8.8.8' >> /etc/resolv.conf && \
+            curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && \
+            mkdir -p $HOME/bin && \
+            cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && \
+            export PATH=$PATH:$HOME/bin && \
+            echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
+            chmod +x /root/bin/aws-iam-authenticator && \
+            rm logs/log* && \
+            ./kubefirst cluster create --silent || cat logs/log*"
 
     - - name: TestArgoCDLivenessIntegration
         template: create-template
@@ -128,7 +142,14 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
           parameters:
           - name: command
-            value: "curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && mkdir -p $HOME/bin && cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && export PATH=$PATH:$HOME/bin && echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && chmod +x /root/bin/aws-iam-authenticator && rm logs/log* && ./kubefirst destroy --silent || cat logs/log*"
+            value: "curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && \
+            mkdir -p $HOME/bin && \
+            cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && \
+            export PATH=$PATH:$HOME/bin && \
+            echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
+            chmod +x /root/bin/aws-iam-authenticator && \
+            rm logs/log* && \
+            ./kubefirst destroy --silent || cat logs/log*"
 
     - - name: TestIsVPCByTagDestroyedIntegration
         template: destroy-template
@@ -351,42 +372,6 @@ spec:
           value: main
   
   - name: test-template
-    inputs:
-      artifacts:
-      - name: command2
-        path: /src/kubefirst
-      - name: command3
-        path: /root/.k1
-      - name: command4
-        path: /root/.kubefirst
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: k1
-        path: /root/.k1
-      - name: kubefirst
-        path: /root/.kubefirst
-      - name: source
-        path: /src/kubefirst
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-
-  - name: create-template
     inputs:
       artifacts:
       - name: command2
