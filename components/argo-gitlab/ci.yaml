@@ -14,13 +14,16 @@ spec:
 
     - - name: kubefirst-init
         template: init-template
+        continueOn:
+          failed: true
         arguments:
           parameters:
           - name: command
             value: "./kubefirst action aws-whoami && \
             ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
             --s3-suffix <CI_S3_SUFFIX> --admin-email $EMAIL --hosted-zone-name $HOSTED_ZONE_NAME --gitops-branch $GITOPS_BRANCH \
-            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --silent || cat logs/*"
+            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch $METAPHOR_BRANCH --silent || cat logs/* \
+            && exit 1" 
           artifacts:
             - name: source
               from: "{{steps.kubefirst-build.outputs.artifacts.source}}"
@@ -43,6 +46,8 @@ spec:
 
     - - name: kubefirst-create
         template: create-template
+        continueOn:
+          failed: true
         arguments:
           artifacts:
           - name: command2
@@ -64,8 +69,8 @@ spec:
             echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
             chmod +x /root/bin/aws-iam-authenticator && \
             rm logs/log* && \
-            ./kubefirst cluster create --silent || cat logs/log*"
-
+            ./kubefirst cluster create --silent || cat logs/* \
+            && exit 1"
     - - name: TestArgoCDLivenessIntegration
         template: create-template
         continueOn:
@@ -132,6 +137,8 @@ spec:
 
     - - name: kubefirst-destroy
         template: destroy-template
+        continueOn:
+          failed: true
         arguments:
           artifacts:
           - name: command2
@@ -149,7 +156,8 @@ spec:
             echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
             chmod +x /root/bin/aws-iam-authenticator && \
             rm logs/log* && \
-            ./kubefirst destroy --silent || cat logs/log*"
+            ./kubefirst destroy --silent || cat logs/* \
+            && exit 1"
 
     - - name: TestIsVPCByTagDestroyedIntegration
         template: destroy-template
@@ -249,7 +257,7 @@ spec:
     container:
       image: golang:latest
       command: [sh, -c]
-      args: ["git checkout remove-aws-profile && git pull && go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.8.6' . && ls -lah"]
+      args: ["git checkout remove-aws-profile && git pull && go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.9.5' . && ls -lah"]
       workingDir: /src/kubefirst
       env:
         - name: AWS_REGION
@@ -283,6 +291,8 @@ spec:
         - name: HOSTED_ZONE_NAME
           value: <CI_HOSTED_ZONE_NAME>
         - name: GITOPS_BRANCH
+          value: main
+        - name: METAPHOR_BRANCH
           value: main
     inputs:
       artifacts:
@@ -334,6 +344,8 @@ spec:
           value: <CI_HOSTED_ZONE_NAME>
         - name: GITOPS_BRANCH
           value: main
+        - name: METAPHOR_BRANCH
+          value: main
             
   - name: clean-template
     inputs:
@@ -369,6 +381,8 @@ spec:
         - name: HOSTED_ZONE_NAME
           value: <CI_HOSTED_ZONE_NAME>
         - name: GITOPS_BRANCH
+          value: main
+        - name: METAPHOR_BRANCH
           value: main
   
   - name: test-template
@@ -406,6 +420,8 @@ spec:
           value: <CI_HOSTED_ZONE_NAME>
         - name: GITOPS_BRANCH
           value: main
+        - name: METAPHOR_BRANCH
+          value: main
             
   - name: destroy-template
     inputs:
@@ -433,4 +449,6 @@ spec:
         - name: HOSTED_ZONE_NAME
           value: <CI_HOSTED_ZONE_NAME>
         - name: GITOPS_BRANCH
+          value: main
+        - name: METAPHOR_BRANCH
           value: main
