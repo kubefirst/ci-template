@@ -22,8 +22,7 @@ spec:
             value: "./kubefirst action aws-whoami && \
             ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
             --s3-suffix <CI_S3_SUFFIX> --admin-email $EMAIL --hosted-zone-name $HOSTED_ZONE_NAME --gitops-branch $GITOPS_BRANCH \
-            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch $METAPHOR_BRANCH --silent || cat logs/* \
-            && exit 1" 
+            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch $METAPHOR_BRANCH --silent" 
           artifacts:
             - name: source
               from: "{{steps.kubefirst-build.outputs.artifacts.source}}"
@@ -40,6 +39,8 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}" 
           parameters:
           - name: command
             value: "go test -v -run TestAreS3BucketsLiveIntegration ./internal/aws"
@@ -56,6 +57,8 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}" 
           parameters:
           - name: command
             value: "echo 'nameserver 208.67.222.222' >> /etc/resolv.conf && \
@@ -69,8 +72,8 @@ spec:
             echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
             chmod +x /root/bin/aws-iam-authenticator && \
             rm logs/log* && \
-            ./kubefirst cluster create --silent || cat logs/* \
-            && exit 1"
+            ./kubefirst cluster create --silent"
+  
     - - name: TestArgoCDLivenessIntegration
         template: create-template
         continueOn:
@@ -83,11 +86,14 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}" 
           parameters:
           - name: command
             value: "go test -v -run TestArgoCDLivenessIntegration ./internal/argocd"
 
-    - - name: TestArgoWorkflowLivenessIntegration
+
+      - name: TestArgoWorkflowLivenessIntegration
         template: create-template
         continueOn:
           failed: true
@@ -99,11 +105,13 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestArgoWorkflowLivenessIntegration ./internal/argocd"
 
-    - - name: TestGitLabLivenessIntegration
+      - name: TestGitLabLivenessIntegration
         template: create-template
         continueOn:
           failed: true
@@ -115,11 +123,13 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestGitLabLivenessIntegration ./internal/gitlab"
 
-    - - name: TestMetaphorsLivenessIntegration
+      - name: TestMetaphorsLivenessIntegration
         template: create-template
         continueOn:
           failed: true
@@ -131,9 +141,29 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestMetaphorsLivenessIntegration ./internal/metaphor"
+
+    - - name: sleep
+        template: create-template
+        continueOn:
+          failed: true
+        arguments:
+          artifacts:
+          - name: command2
+            from: "{{steps.kubefirst-init.outputs.artifacts.source}}"
+          - name: command3
+            from: "{{steps.kubefirst-init.outputs.artifacts.k1}}"
+          - name: command4
+            from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}" 
+          parameters:
+          - name: command
+            value: "sleep 1m"
 
     - - name: kubefirst-destroy
         template: destroy-template
@@ -147,6 +177,8 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && \
@@ -156,8 +188,7 @@ spec:
             echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
             chmod +x /root/bin/aws-iam-authenticator && \
             rm logs/log* && \
-            ./kubefirst destroy --silent || cat logs/* \
-            && exit 1"
+            ./kubefirst cluster destroy --silent || ./kubefirst cluster destroy --silent --skip-gitlab-terraform --skip-delete-register"
 
     - - name: TestIsVPCByTagDestroyedIntegration
         template: destroy-template
@@ -171,11 +202,13 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestIsVPCByTagDestroyedIntegration ./internal/aws"
 
-    - - name: TestIsLoadBalancerByTagDestroyedIntegration
+      - name: TestIsLoadBalancerByTagDestroyedIntegration
         template: destroy-template
         continueOn:
           failed: true
@@ -187,6 +220,8 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestIsLoadBalancerByTagDestroyedIntegration ./internal/aws"
@@ -203,11 +238,13 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestAreS3BucketsDestroyedIntegration ./internal/aws"
 
-    - - name: TestIsKMSKeyAliasDestroyedIntegration
+      - name: TestIsKMSKeyAliasDestroyedIntegration
         template: destroy-template
         continueOn:
           failed: true
@@ -219,11 +256,13 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestIsKMSKeyAliasDestroyedIntegration ./internal/aws"
 
-    - - name: TestIsEKSDestroyedIntegration
+      - name: TestIsEKSDestroyedIntegration
         template: destroy-template
         continueOn:
           failed: true
@@ -235,6 +274,8 @@ spec:
             from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
           - name: command4
             from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
           parameters:
           - name: command
             value: "go test -v -run TestIsEKSDestroyedIntegration ./internal/aws"
@@ -251,13 +292,13 @@ spec:
             from: "{{steps.kubefirst-init.outputs.artifacts.kubefirst}}"
           parameters:
           - name: command
-            value: "./kubefirst clean --destroy-buckets --destroy-confirm || echo $?"
+            value: "./kubefirst clean --destroy-buckets --destroy-confirm"
 
   - name: build-template
     container:
       image: golang:latest
       command: [sh, -c]
-      args: ["git checkout remove-aws-profile && git pull && go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.9.5' . && ls -lah"]
+      args: ["go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.9.9' . && go get -t ./..."]
       workingDir: /src/kubefirst
       env:
         - name: AWS_REGION
@@ -272,6 +313,8 @@ spec:
         artifacts:
         - name: source
           path: /src/kubefirst
+        - name: gopkg
+          path: /go/pkg
   
   - name: init-template
     container:
@@ -308,6 +351,8 @@ spec:
         path: /root/.kubefirst
       - name: source
         path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
 
   - name: create-template
     inputs:
@@ -318,6 +363,8 @@ spec:
         path: /root/.k1
       - name: command4
         path: /root/.kubefirst
+      - name: command5
+        path: /go/pkg
       parameters:
       - name: command
     outputs:
@@ -328,6 +375,8 @@ spec:
         path: /root/.kubefirst
       - name: source
         path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
     container:
       image: golang:latest
       command: [sh, -c]
@@ -366,44 +415,8 @@ spec:
         path: /root/.kubefirst
       - name: source
         path: /src/kubefirst
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-        - name: METAPHOR_BRANCH
-          value: main
-  
-  - name: test-template
-    inputs:
-      artifacts:
-      - name: command2
-        path: /src/kubefirst
-      - name: command3
-        path: /root/.k1
-      - name: command4
-        path: /root/.kubefirst
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: k1
-        path: /root/.k1
-      - name: kubefirst
-        path: /root/.kubefirst
-      - name: source
-        path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
     container:
       image: golang:latest
       command: [sh, -c]
@@ -432,8 +445,14 @@ spec:
         path: /root/.k1
       - name: command4
         path: /root/.kubefirst
+      - name: command5
+        path: /go/pkg
       parameters:
       - name: command
+    outputs:
+      artifacts:
+      - name: logs
+        path: /src/kubefirst/logs
     container:
       image: golang:latest
       command: [sh, -c]

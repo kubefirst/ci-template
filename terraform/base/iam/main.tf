@@ -1,5 +1,5 @@
-data "aws_iam_role" "worker_node_role" {
-  name = "kubefirst-worker-nodes-role-${var.cluster_name}"
+data "aws_iam_role" "argo_role" {
+  name = "argo-${var.cluster_name}"
 }
 
 module "iam_assumable_role_ci_custom_trust_policy" {
@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "ci_custom_trust_policy" {
 
     principals {
       type        = "AWS"
-      identifiers = [data.aws_iam_role.worker_node_role.arn]
+      identifiers = [data.aws_iam_role.argo_role.arn]
     }
   }
 }
