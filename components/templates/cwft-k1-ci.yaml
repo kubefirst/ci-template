@@ -1,0 +1,172 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: cwft-k1-ci
+spec:
+#  entrypoint: ci-setup-src
+  templates:  
+  - name: build-template
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.10.1' . && go get -t ./..."]
+      workingDir: /src/kubefirst
+      env:
+        - name: AWS_REGION
+          value: <AWS_DEFAULT_REGION>
+    inputs:
+        parameters: 
+        - name: branch          
+          default: main      
+        artifacts:
+        - name: source
+          path: /src/kubefirst
+          git:
+            repo: https://github.com/kubefirst/kubefirst.git
+            revision: "{{inputs.parameters.branch}}"
+    outputs:
+        artifacts:
+        - name: source
+          path: /src/kubefirst
+        - name: gopkg
+          path: /go/pkg
+  
+  - name: init-template
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["{{inputs.parameters.command}}"]
+      workingDir: /src/kubefirst
+    inputs:
+      artifacts:
+      - name: source
+        path: /src/kubefirst
+      parameters:
+      - name: command
+    outputs:
+      artifacts:
+      - name: k1
+        path: /root/.k1
+      - name: kubefirst
+        path: /root/.kubefirst
+      - name: source
+        path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
+
+  - name: create-template
+    inputs:
+      artifacts:
+      - name: command2
+        path: /src/kubefirst
+      - name: command3
+        path: /root/.k1
+      - name: command4
+        path: /root/.kubefirst
+      - name: command5
+        path: /go/pkg
+      parameters:
+      - name: command
+    outputs:
+      artifacts:
+      - name: k1
+        path: /root/.k1
+      - name: kubefirst
+        path: /root/.kubefirst
+      - name: source
+        path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["{{inputs.parameters.command}}"]
+      workingDir: /src/kubefirst
+            
+  - name: clean-template
+    inputs:
+      artifacts:
+      - name: command2
+        path: /src/kubefirst
+      - name: command3
+        path: /root/.k1
+      - name: command4
+        path: /root/.kubefirst
+      parameters:
+      - name: command
+    outputs:
+      artifacts:
+      - name: k1
+        path: /root/.k1
+      - name: kubefirst
+        path: /root/.kubefirst
+      - name: source
+        path: /src/kubefirst
+      - name: logs
+        path: /src/kubefirst/logs
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["{{inputs.parameters.command}}"]
+      workingDir: /src/kubefirst
+            
+  - name: destroy-template
+    inputs:
+      artifacts:
+      - name: command2
+        path: /src/kubefirst
+      - name: command3
+        path: /root/.k1
+      - name: command4
+        path: /root/.kubefirst
+      - name: command5
+        path: /go/pkg
+      parameters:
+      - name: command
+    outputs:
+      artifacts:
+      - name: logs
+        path: /src/kubefirst/logs
+      - name: k1
+        path: /root/.k1
+      - name: kubefirst
+        path: /root/.kubefirst
+      - name: source
+        path: /src/kubefirst
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["{{inputs.parameters.command}}"]
+      workingDir: /src/kubefirst
+
+  - name: aws-cli
+    inputs:
+      artifacts:
+      - name: command2
+        path: /src/kubefirst
+      - name: command3
+        path: /root/.k1
+      - name: command4
+        path: /root/.kubefirst
+      parameters:
+      - name: command
+    outputs:
+      artifacts:
+      - name: logs
+        path: /src/kubefirst/logs
+    container:
+      image: golang:latest
+      command: [sh, -c]
+      args: ["{{inputs.parameters.command}}"]
+      workingDir: /src/kubefirst
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            secretKeyRef:
+              name: aws-secret
+              key: username
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom: 
+            secretKeyRef:
+              name: aws-secret
+              key: password
