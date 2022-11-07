@@ -29,10 +29,11 @@ spec:
         arguments:
           parameters:
           - name: command
-            value: "./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
-            --s3-suffix <CI_S3_SUFFIX> --admin-email kubefirst-bot@kubefirst.com --hosted-zone-name <CI_HOSTED_ZONE_NAME> --gitops-branch <CI_GITOPS_BRANCH> \
-            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch <CI_METAPHOR_BRANCH> \
-            --github-user <CI_GITHUB_USER> --github-owner <CI_GITHUB_OWNER> --silent" 
+            value: |
+              ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
+              --s3-suffix <CI_S3_SUFFIX> --admin-email kubefirst-bot@kubefirst.com --hosted-zone-name <CI_HOSTED_ZONE_NAME> --gitops-branch <CI_GITOPS_BRANCH> \
+              --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch <CI_METAPHOR_BRANCH> \
+              --github-user <CI_GITHUB_USER> --github-owner <CI_GITHUB_OWNER> --silent
           artifacts:
             - name: source
               from: "{{steps.kubefirst-build.outputs.artifacts.source}}"
@@ -89,7 +90,7 @@ spec:
               echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
               chmod +x /root/bin/aws-iam-authenticator
               rm logs/log*
-              ./kubefirst cluster create --silent"
+              ./kubefirst cluster create --silent
 
     - - name: sleep1
         templateRef:
@@ -245,7 +246,7 @@ spec:
               echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
               chmod +x /root/bin/aws-iam-authenticator
               rm logs/log*
-              ./kubefirst cluster destroy --silent"
+              ./kubefirst cluster destroy --silent
 
     - - name: delete-elb
         templateRef:
@@ -305,7 +306,7 @@ spec:
               echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
               chmod +x /root/bin/aws-iam-authenticator
               rm logs/log*
-              ./kubefirst cluster destroy --silent --skip-delete-register"
+              ./kubefirst cluster destroy --silent --skip-delete-register
 
     - - name: TestIsVPCByTagDestroyedIntegration
         templateRef:
