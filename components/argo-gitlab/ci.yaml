@@ -10,25 +10,38 @@ spec:
   - name: ci
     steps:
     - - name: kubefirst-build
-        template: build-template
+        templateRef:
+          name: cwft-k1-ci
+          template: build-template
+          clusterScope: true
+        arguments:
+          parameters:
+          - name: branch
+            value: <CI_KUBEFIRST_BRANCH>
 
     - - name: kubefirst-init
-        template: init-template
+        templateRef:
+          name: cwft-k1-ci
+          template: init-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
           parameters:
           - name: command
             value: "./kubefirst action aws-whoami && \
-            ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> \
-            --s3-suffix <CI_S3_SUFFIX> --admin-email $EMAIL --hosted-zone-name $HOSTED_ZONE_NAME --gitops-branch $GITOPS_BRANCH \
-            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch $METAPHOR_BRANCH --silent" 
+            ./kubefirst init --cloud aws --region <AWS_DEFAULT_REGION> --aws-nodes-spot --cluster-name <CI_CLUSTER_NAME> --git-provider gitlab \
+            --s3-suffix <CI_S3_SUFFIX> --admin-email kubefirst-bot@kubefirst.com --hosted-zone-name <CI_HOSTED_ZONE_NAME> --gitops-branch <CI_GITOPS_BRANCH> \
+            --aws-assume-role 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/ci-role-<CLUSTER_NAME>' --metaphor-branch <CI_METAPHOR_BRANCH> --silent" 
           artifacts:
             - name: source
               from: "{{steps.kubefirst-build.outputs.artifacts.source}}"
 
     - - name: TestAreS3BucketsLiveIntegration
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -46,7 +59,10 @@ spec:
             value: "go test -v -run TestAreS3BucketsLiveIntegration ./internal/aws"
 
     - - name: kubefirst-create
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -75,7 +91,10 @@ spec:
             ./kubefirst cluster create --silent"
   
     - - name: TestArgoCDLivenessIntegration
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -94,7 +113,10 @@ spec:
 
 
       - name: TestArgoWorkflowLivenessIntegration
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -112,7 +134,10 @@ spec:
             value: "go test -v -run TestArgoWorkflowLivenessIntegration ./internal/argocd"
 
       - name: TestGitLabLivenessIntegration
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -130,7 +155,10 @@ spec:
             value: "go test -v -run TestGitLabLivenessIntegration ./internal/gitlab"
 
       - name: TestMetaphorsLivenessIntegration
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -148,7 +176,10 @@ spec:
             value: "go test -v -run TestMetaphorsLivenessIntegration ./internal/metaphor"
 
     - - name: sleep
-        template: create-template
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true 
         continueOn:
           failed: true
         arguments:
@@ -163,10 +194,34 @@ spec:
             from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}" 
           parameters:
           - name: command
-            value: "sleep 1m"
+            value: "sleep 10m"
+
+    - - name: kubefirst-bakup-ssl
+        templateRef:
+          name: cwft-k1-ci
+          template: create-template
+          clusterScope: true     
+        continueOn:
+          failed: true
+        arguments:
+          artifacts:
+          - name: command2
+            from: "{{steps.kubefirst-create.outputs.artifacts.source}}"
+          - name: command3
+            from: "{{steps.kubefirst-create.outputs.artifacts.k1}}"
+          - name: command4
+            from: "{{steps.kubefirst-create.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
+          parameters:
+          - name: command
+            value: "./kubefirst backupSSL"
 
     - - name: kubefirst-destroy
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -190,8 +245,67 @@ spec:
             rm logs/log* && \
             ./kubefirst cluster destroy --silent || ./kubefirst cluster destroy --silent --skip-gitlab-terraform --skip-delete-register"
 
+    - - name: delete-elb
+        template: aws-cli
+        continueOn:
+          failed: true
+        arguments:
+          artifacts:
+          - name: command2
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.source}}"
+          - name: command3
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.k1}}"
+          - name: command4
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.kubefirst}}"
+          parameters:
+          - name: command
+            value: |
+              apt update -y
+              apt install unzip less jq -y
+              curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'
+              unzip awscliv2.zip
+              ./aws/install
+              aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+              aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+              aws configure set region $AWS_REGION
+              aws configure set output json
+              ELB=$(for i in $(aws elb describe-load-balancers | jq -r '.LoadBalancerDescriptions[].LoadBalancerName'); do aws elb describe-tags --load-balancer-names "$i" | jq -ce '.TagDescriptions[].Tags[] | select( .Key == "kubernetes.io/cluster/<CI_CLUSTER_NAME>" and .Value == "owned")' && echo "$i" ;done | sed -n '2 p')
+              aws elb delete-load-balancer --load-balancer-name $ELB 
+              sleep 120
+
+    - - name: destroy-leftovers
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
+        continueOn:
+          failed: true
+        arguments:
+          artifacts:
+          - name: command2
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.source}}"
+          - name: command3
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.k1}}"
+          - name: command4
+            from: "{{steps.kubefirst-destroy.outputs.artifacts.kubefirst}}"
+          - name: command5
+            from: "{{steps.kubefirst-build.outputs.artifacts.gopkg}}"
+          parameters:
+          - name: command
+            value: "curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator && \
+            mkdir -p $HOME/bin && \
+            cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && \
+            export PATH=$PATH:$HOME/bin && \
+            echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && \
+            chmod +x /root/bin/aws-iam-authenticator && \
+            rm logs/log* && \
+            ./kubefirst cluster destroy --silent --skip-gitlab-terraform --skip-delete-register"
+
     - - name: TestIsVPCByTagDestroyedIntegration
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -209,7 +323,10 @@ spec:
             value: "go test -v -run TestIsVPCByTagDestroyedIntegration ./internal/aws"
 
       - name: TestIsLoadBalancerByTagDestroyedIntegration
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -227,7 +344,10 @@ spec:
             value: "go test -v -run TestIsLoadBalancerByTagDestroyedIntegration ./internal/aws"
 
     - - name: TestAreS3BucketsDestroyedIntegration
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -245,7 +365,10 @@ spec:
             value: "go test -v -run TestAreS3BucketsDestroyedIntegration ./internal/aws"
 
       - name: TestIsKMSKeyAliasDestroyedIntegration
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -263,7 +386,10 @@ spec:
             value: "go test -v -run TestIsKMSKeyAliasDestroyedIntegration ./internal/aws"
 
       - name: TestIsEKSDestroyedIntegration
-        template: destroy-template
+        templateRef:
+          name: cwft-k1-ci
+          template: destroy-template
+          clusterScope: true     
         continueOn:
           failed: true
         arguments:
@@ -281,7 +407,10 @@ spec:
             value: "go test -v -run TestIsEKSDestroyedIntegration ./internal/aws"
 
     - - name: kubefirst-clean
-        template: clean-template
+        templateRef:
+          name: cwft-k1-ci
+          template: clean-template
+          clusterScope: true
         arguments:
           artifacts:
           - name: command2
@@ -293,181 +422,3 @@ spec:
           parameters:
           - name: command
             value: "./kubefirst clean --destroy-buckets --destroy-confirm"
-
-  - name: build-template
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["go build -ldflags='-X github.com/kubefirst/kubefirst/configs.K1Version=1.9.9' . && go get -t ./..."]
-      workingDir: /src/kubefirst
-      env:
-        - name: AWS_REGION
-          value: <AWS_DEFAULT_REGION>
-    inputs:
-        artifacts:
-        - name: source
-          path: /src/kubefirst
-          git:
-            repo: https://github.com/kubefirst/kubefirst.git
-    outputs:
-        artifacts:
-        - name: source
-          path: /src/kubefirst
-        - name: gopkg
-          path: /go/pkg
-  
-  - name: init-template
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: AWS_REGION
-          value: <AWS_DEFAULT_REGION>
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-        - name: METAPHOR_BRANCH
-          value: main
-    inputs:
-      artifacts:
-      - name: source
-        path: /src/kubefirst
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: k1
-        path: /root/.k1
-      - name: kubefirst
-        path: /root/.kubefirst
-      - name: source
-        path: /src/kubefirst
-      - name: logs
-        path: /src/kubefirst/logs
-
-  - name: create-template
-    inputs:
-      artifacts:
-      - name: command2
-        path: /src/kubefirst
-      - name: command3
-        path: /root/.k1
-      - name: command4
-        path: /root/.kubefirst
-      - name: command5
-        path: /go/pkg
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: k1
-        path: /root/.k1
-      - name: kubefirst
-        path: /root/.kubefirst
-      - name: source
-        path: /src/kubefirst
-      - name: logs
-        path: /src/kubefirst/logs
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-        - name: METAPHOR_BRANCH
-          value: main
-            
-  - name: clean-template
-    inputs:
-      artifacts:
-      - name: command2
-        path: /src/kubefirst
-      - name: command3
-        path: /root/.k1
-      - name: command4
-        path: /root/.kubefirst
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: k1
-        path: /root/.k1
-      - name: kubefirst
-        path: /root/.kubefirst
-      - name: source
-        path: /src/kubefirst
-      - name: logs
-        path: /src/kubefirst/logs
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-        - name: METAPHOR_BRANCH
-          value: main
-            
-  - name: destroy-template
-    inputs:
-      artifacts:
-      - name: command2
-        path: /src/kubefirst
-      - name: command3
-        path: /root/.k1
-      - name: command4
-        path: /root/.kubefirst
-      - name: command5
-        path: /go/pkg
-      parameters:
-      - name: command
-    outputs:
-      artifacts:
-      - name: logs
-        path: /src/kubefirst/logs
-    container:
-      image: golang:latest
-      command: [sh, -c]
-      args: ["{{inputs.parameters.command}}"]
-      workingDir: /src/kubefirst
-      env:
-        - name: CLUSTER_NAME
-          value: <CI_CLUSTER_NAME>
-        - name: SUFFIX_S3
-          value: <CI_S3_SUFFIX>
-        - name: EMAIL
-          value: kubefirst-bot@kubefirst.com
-        - name: HOSTED_ZONE_NAME
-          value: <CI_HOSTED_ZONE_NAME>
-        - name: GITOPS_BRANCH
-          value: main
-        - name: METAPHOR_BRANCH
-          value: main
