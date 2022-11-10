@@ -249,7 +249,10 @@ spec:
               ./kubefirst cluster destroy --silent || ./kubefirst cluster destroy --silent --skip-gitlab-terraform --skip-delete-register
 
     - - name: delete-elb
-        template: aws-cli
+        templateRef:
+          name: cwft-k1-ci
+          template: aws-cli
+          clusterScope: true
         continueOn:
           failed: true
         arguments:
